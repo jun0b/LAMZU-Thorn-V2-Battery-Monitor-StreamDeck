@@ -385,8 +385,10 @@ export function renderBatteryKey(state: BatteryDisplayState): string {
     lines.push(`  <polygon id="charging-bolt" points="75,33 65,47 72,47 69,59 79,45 72,45" fill="#facc15"><title>⚡</title></polygon>`);
     lines.push(`  <text x="${RING_CENTER_X}" y="86" text-anchor="middle" dominant-baseline="central" font-family="${FONT_FAMILY}" font-size="26" font-weight="bold" fill="${COLOR_TEXT_WHITE}">${validPercent}%</text>`);
   } else {
-    // Stream Deck の SVG レンダラーは dominant-baseline を無視するため y=83 で垂直中央に配置
-    lines.push(`  <text x="${RING_CENTER_X}" y="83" text-anchor="middle" dominant-baseline="central" font-family="${FONT_FAMILY}" font-size="32" font-weight="bold" fill="${COLOR_TEXT_WHITE}">${validPercent}%</text>`);
+    // Stream Deck の SVG レンダラーは dominant-baseline を無視するため y=81 (100%時) / y=83 で垂直中央に配置
+    const fontSize = validPercent === 100 ? 26 : 32;
+    const textY = validPercent === 100 ? 81 : 83;
+    lines.push(`  <text x="${RING_CENTER_X}" y="${textY}" text-anchor="middle" dominant-baseline="central" font-family="${FONT_FAMILY}" font-size="${fontSize}" font-weight="bold" fill="${COLOR_TEXT_WHITE}">${validPercent}%</text>`);
   }
 
   lines.push(`</svg>`);
