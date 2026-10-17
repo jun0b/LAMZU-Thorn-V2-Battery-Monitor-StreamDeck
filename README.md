@@ -23,6 +23,9 @@ Property Inspector（設定画面）から、好みに応じた3種類の表示�
 - **ドングル切断**: 暗灰色ゲージ + `N/A` + 切断アイコン
 - **通信エラー / 再起動中**: 赤破線ゲージ + `ERR` 表示
 
+### キー押下アクション
+- Stream Deck のキーを押下すると、既定のブラウザーで公式 Web ドライバー（[LAMZU Aurora](https://www.lamzu.net/#/project/items)）の設定画面を直接開きます。
+
 ---
 
 ## 設定項目 (Property Inspector)

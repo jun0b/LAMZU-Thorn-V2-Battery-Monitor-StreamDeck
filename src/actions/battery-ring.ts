@@ -6,6 +6,7 @@ import streamDeck, {
 	action,
 	type DidReceiveSettingsEvent,
 	type KeyAction,
+	type KeyDownEvent,
 	SingletonAction,
 	type WillAppearEvent,
 	type WillDisappearEvent,
@@ -13,6 +14,9 @@ import streamDeck, {
 import type { JsonObject } from "@elgato/utils";
 import { renderBatteryKey, svgToDataUrl } from "../render/ring-renderer.js";
 import type { BatteryDisplayState, DisplayLayout } from "../render/types.js";
+
+/** LAMZU Aurora 公式 Web ドライバー URL */
+export const LAMZU_AURORA_URL = "https://www.lamzu.net/#/project/items";
 
 /**
  * キーごとの設定値（Property Inspector と同期）
@@ -130,6 +134,14 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 		streamDeck.logger.info(
 			`[BatteryRingAction] onWillDisappear: id=${ev.action.id}, activeKeys=${this.activeKeys.size}`,
 		);
+	}
+
+	/**
+	 * キー押下時に既定ブラウザで LAMZU Aurora（公式 Web ドライバー）を開く
+	 */
+	override onKeyDown(ev: KeyDownEvent<BatteryKeySettings>): Promise<void> | void {
+		streamDeck.logger.info(`[BatteryRingAction] onKeyDown: LAMZU Aurora を開きます (${LAMZU_AURORA_URL})`);
+		return streamDeck.system.openUrl(LAMZU_AURORA_URL);
 	}
 
 	/**
