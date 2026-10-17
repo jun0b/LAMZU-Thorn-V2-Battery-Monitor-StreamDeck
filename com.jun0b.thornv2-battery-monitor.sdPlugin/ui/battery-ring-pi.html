@@ -75,6 +75,31 @@
       font-size: 11px;
       line-height: 1.4;
     }
+    hr {
+      border: 0;
+      border-top: 1px solid #444444;
+      margin: 8px 0 6px 0;
+    }
+    .footer-section {
+      padding: 2px 0 6px 0;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+    .footer-text {
+      color: #9e9e9e;
+      margin-bottom: 2px;
+    }
+    .sdpi-link {
+      color: #7397d2;
+      text-decoration: underline;
+      font-size: 11px;
+      cursor: pointer;
+      word-break: break-all;
+    }
+    .sdpi-link:hover {
+      color: #9bb8ea;
+      text-decoration: underline;
+    }
     .hidden {
       display: none !important;
     }
@@ -107,6 +132,13 @@
         Refresh interval for reading mouse DPI and polling rate (Hz).
       </div>
     </div>
+
+    <!-- GitHub リンク / フッター情報 -->
+    <hr />
+    <div class="footer-section">
+      <div class="footer-text">For source code, issues, and feedback:</div>
+      <a href="https://github.com/jun0b/LAMZU-Thorn-V2-Battery-Monitor-StreamDeck" target="_blank" class="sdpi-link" onclick="openUrl(event, 'https://github.com/jun0b/LAMZU-Thorn-V2-Battery-Monitor-StreamDeck')">https://github.com/jun0b/LAMZU-Thorn-V2-Battery-Monitor-StreamDeck</a>
+    </div>
   </div>
 
   <script>
@@ -116,6 +148,22 @@
       layout: "ring",
       pollingIntervalSec: 30,
     };
+
+    function openUrl(event, url) {
+      if (event) {
+        event.preventDefault();
+      }
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(
+          JSON.stringify({
+            event: "openUrl",
+            payload: { url: url },
+          })
+        );
+      } else {
+        window.open(url, "_blank");
+      }
+    }
 
     const layoutSelect = document.getElementById("layout-select");
     const pollingGroup = document.getElementById("polling-group");
