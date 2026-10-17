@@ -20,6 +20,7 @@ export const RING_CIRCUMFERENCE = 2 * Math.PI * RING_RADIUS;
 export const RING_STROKE_WIDTH = 10;
 
 /** カラーパレット */
+export const COLOR_CYAN = "#00d2ff";       // 充電完了 (水色/シアン)
 export const COLOR_GREEN = "#22c55e";      // 51〜100%
 export const COLOR_YELLOW = "#eab308";     // 21〜50%
 export const COLOR_RED = "#ef4444";        // 0〜20% / ERR
@@ -29,9 +30,12 @@ export const COLOR_TEXT_GRAY = "#94a3b8";  // スリープ・未取得時テキ�
 export const COLOR_BACKGROUND = "#000000"; // キー背景色
 
 /**
- * バッテリー残量に応じたゲージ色を返す
+ * バッテリー残量および充電完了状態に応じたゲージ色を返す
  */
-export function getBatteryRingColor(percent: number): string {
+export function getBatteryRingColor(percent: number, isChargingComplete = false): string {
+  if (isChargingComplete) {
+    return COLOR_CYAN;
+  }
   if (percent > 50) {
     return COLOR_GREEN;
   }
@@ -53,10 +57,21 @@ export function sanitizeBatteryPercent(value: number | null | undefined): number
 }
 
 /**
- * 充電中かどうかを判定する
+ * 充電完了（満充電）状態かどうかを判定する
+ */
+export function isChargingComplete(state: BatteryDisplayState | null | undefined): boolean {
+  return state?.charging === "CHARGING_COMPLETE";
+}
+
+/**
+ * 充電中または充電完了（⚡マーク表示対象）かどうかを判定する
  */
 export function isChargingActive(state: BatteryDisplayState | null | undefined): boolean {
-  return state?.charging === "CHARGING" || state?.charging === true;
+  return (
+    state?.charging === "CHARGING" ||
+    state?.charging === "CHARGING_COMPLETE" ||
+    state?.charging === true
+  );
 }
 
 /**
@@ -128,7 +143,7 @@ function renderHorizontalBatteryIcon(options: {
     lines.push(`    <rect x="${x + pad}" y="${y + pad}" width="${fillW}" height="${innerH}" rx="${innerRx}" fill="${fillColor}" />`);
   }
   if (isCharging) {
-    // 充電中は電池アイコン中央に稲妻マークを重ねる
+    // 充電中・充電完了時は電池アイコン中央に稲妻マークを重ねる
     const cx = x + width / 2;
     const cy = y + height / 2;
     const scale = height / 25;
@@ -152,6 +167,7 @@ function renderBarLayout(
   receiveState: string,
   battery: number | null,
   isCharging: boolean,
+  chargingComplete: boolean,
 ): string {
   const lines: string[] = [];
   lines.push(`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 144 144" width="144" height="144">`);
@@ -179,8 +195,8 @@ function renderBarLayout(
   }
 
   const validPercent = battery ?? 0;
-  const barColor = getBatteryRingColor(validPercent);
   const isSleep = receiveState === "SLEEP_SUSPECTED";
+  const barColor = getBatteryRingColor(validPercent, !isSleep && chargingComplete);
   const textColor = isSleep ? COLOR_TEXT_GRAY : COLOR_TEXT_WHITE;
   const barOpacity = isSleep ? 0.4 : 1;
 
@@ -212,6 +228,7 @@ function renderBarDpiLayout(
   receiveState: string,
   battery: number | null,
   isCharging: boolean,
+  chargingComplete: boolean,
   dpi: number | null | undefined,
   pollingRate: number | null | undefined,
 ): string {
@@ -253,8 +270,8 @@ function renderBarDpiLayout(
   }
 
   const validPercent = battery ?? 0;
-  const barColor = getBatteryRingColor(validPercent);
   const isSleep = receiveState === "SLEEP_SUSPECTED";
+  const barColor = getBatteryRingColor(validPercent, !isSleep && chargingComplete);
   const textColor = isSleep ? COLOR_TEXT_GRAY : COLOR_TEXT_WHITE;
   const barOpacity = isSleep ? 0.4 : 1;
   const fontSize = validPercent === 100 ? 22 : 26;
@@ -294,13 +311,14 @@ export function renderBatteryKey(state: BatteryDisplayState): string {
   const receiveState = isKnownState ? rawState : "ERR";
   const battery = sanitizeBatteryPercent(state?.battery);
   const isCharging = isChargingActive(state);
+  const chargingComplete = isChargingComplete(state);
   const layout = state?.layout ?? "ring";
 
   if (layout === "bar") {
-    return renderBarLayout(receiveState, battery, isCharging);
+    return renderBarLayout(receiveState, battery, isCharging, chargingComplete);
   }
   if (layout === "bar_dpi") {
-    return renderBarDpiLayout(receiveState, battery, isCharging, state?.dpi, state?.polling_rate);
+    return renderBarDpiLayout(receiveState, battery, isCharging, chargingComplete, state?.dpi, state?.polling_rate);
   }
 
   const lines: string[] = [];
@@ -335,7 +353,7 @@ export function renderBatteryKey(state: BatteryDisplayState): string {
   // スリープ状態
   if (receiveState === "SLEEP_SUSPECTED") {
     const validPercent = battery ?? 0;
-    const ringColor = getBatteryRingColor(validPercent);
+    const ringColor = getBatteryRingColor(validPercent, false);
     const dashOffset = RING_CIRCUMFERENCE * (1 - validPercent / 100);
 
     lines.push(`  <circle cx="${RING_CENTER_X}" cy="${RING_CENTER_Y}" r="${RING_RADIUS}" fill="none" stroke="${COLOR_TRACK}" stroke-width="${RING_STROKE_WIDTH}" opacity="0.4" />`);
@@ -354,7 +372,7 @@ export function renderBatteryKey(state: BatteryDisplayState): string {
 
   // 通常受信中
   const validPercent = battery ?? 0;
-  const ringColor = getBatteryRingColor(validPercent);
+  const ringColor = getBatteryRingColor(validPercent, chargingComplete);
   const dashOffset = RING_CIRCUMFERENCE * (1 - validPercent / 100);
 
   lines.push(`  <circle cx="${RING_CENTER_X}" cy="${RING_CENTER_Y}" r="${RING_RADIUS}" fill="none" stroke="${COLOR_TRACK}" stroke-width="${RING_STROKE_WIDTH}" />`);

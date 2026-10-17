@@ -76,6 +76,14 @@ class BatteryState:
                 return False
             return self.charging_state == ChargingState.CHARGING
 
+    @property
+    def is_charging_complete(self) -> bool:
+        """充電完了かどうか (正常受信中かつ CHARGING_COMPLETE の場合のみ True)"""
+        with self._lock:
+            if not self.dongle_available or self.receive_state != ReceiveState.NORMAL:
+                return False
+            return self.charging_state == ChargingState.CHARGING_COMPLETE
+
     def add_listener(self, listener: Callable[["BatteryState"], None]) -> None:
         with self._lock:
             self._listeners.append(listener)
@@ -150,7 +158,14 @@ class BatteryState:
             self.dongle_available = True
 
             if self.receive_state == ReceiveState.NORMAL:
+                # 形式Bは2値(CHARGING / DISCHARGING)のみのため、既にCHARGING_COMPLETEの場合は
+                # 形式BのCHARGINGで上書きしてチラつくのを防ぐ（DISCHARGINGへの遷移は反映する）
                 if (
+                    self.charging_state == ChargingState.CHARGING_COMPLETE
+                    and charging_state == ChargingState.CHARGING
+                ):
+                    pass
+                elif (
                     charging_state != ChargingState.UNKNOWN
                     and self.charging_state != charging_state
                 ):

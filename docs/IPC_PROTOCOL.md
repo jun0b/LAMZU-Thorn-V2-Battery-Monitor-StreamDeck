@@ -96,7 +96,7 @@
 | `type` | string | ○ | 固定値 `"state"` |
 | `receive_state` | string | ○ | バッテリー受信ステータス（下記参照） |
 | `battery` | integer \| null | ○ | バッテリー残量パーセント（`0` 〜 `100`、未取得時は `null`） |
-| `charging` | string | ○ | 充電ステータス（`"UNKNOWN"`, `"DISCHARGING"`, `"CHARGING"`） |
+| `charging` | string | ○ | 充電ステータス（`"UNKNOWN"`, `"DISCHARGING"`, `"CHARGING"`, `"CHARGING_COMPLETE"`） |
 | `dpi` | integer \| null | - | 現在の DPI 設定値（未取得時は `null`） |
 | `polling_rate` | integer \| null | - | 現在のポーリングレート（Hz、未取得時は `null`） |
 | `ts` | number | ○ | 状態更新時刻の UNIX タイムスタンプ（秒、浮動小数点数） |
@@ -108,7 +108,12 @@
 - `"SLEEP_SUSPECTED"`: 最後の有効な Format A (`0x38`) パケット受信から 15秒以上経過（スリープ推測状態）
 - `"DONGLE_DISCONNECTED"`: ドングル未接続、抜去、または HID 通信切断
 
-#### ハードウェア仕様に基づく充電ステータスの扱い:
+#### `charging` の値定義とハードウェア仕様に基づく扱い:
+- `"DISCHARGING"`: 非充電（通常動作、Format A `0x00` または Format B `0x00`）
+- `"CHARGING"`: 充電中（Format A `0x04` または Format B `0x01`）
+- `"CHARGING_COMPLETE"`: 充電完了・満充電（Format A `0x02`）
+  - ※ Format B パケット（`0x03`）は2値（充電中 `0x01` / 非充電 `0x00`）のみを持つため、すでに `"CHARGING_COMPLETE"` の状態で Format B の `0x01` を受信した場合は `"CHARGING"` に降格させず `"CHARGING_COMPLETE"` を維持する（`0x00` 受信時のみ `"DISCHARGING"` へ遷移）。
+- `"UNKNOWN"`: 未確定または切断・待機中
 - マウス本体および LAMZU 8K ドングルの仕様上、USB ケーブル抜去後もハードウェア側から充電中ステータスが継続送信される場合がある。
 - **サイドカー側で推測によるステータス上書きや強制解除は行わず、デバイスから受信した値を忠実に伝達する**（`HID_PROTOCOL.md` 準拠）。
 

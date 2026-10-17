@@ -55,7 +55,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger("sidecar")
 
-VERSION = "0.1.0"
+VERSION = "0.1.1"
 MAX_LINE_LENGTH = 65536
 _stdout_lock = threading.Lock()
 

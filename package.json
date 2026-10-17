@@ -1,6 +1,6 @@
 {
   "name": "com.jun0b.thornv2-battery-monitor",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "LAMZU Thorn V2 Mouse Battery Monitor for Stream Deck",
   "type": "module",
   "scripts": {

@@ -18,7 +18,7 @@ export type BatteryReceiveState =
 /**
  * 充電状態
  */
-export type ChargingState = "UNKNOWN" | "DISCHARGING" | "CHARGING";
+export type ChargingState = "UNKNOWN" | "DISCHARGING" | "CHARGING" | "CHARGING_COMPLETE";
 
 /**
  * 起動通知メッセージ (hello)

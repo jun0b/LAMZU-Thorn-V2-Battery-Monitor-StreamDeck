@@ -59,7 +59,12 @@ class DemoSource:
             if not self._wait_interval(self.step_interval):
                 break
 
-            # 3. 高残量・充電中 (90% / 充電中)
+            # 3. 満充電・充電完了 (100% / 充電完了)
+            self.state.update_battery(100, status_code=0x02, state_value=0x58, charging_state=ChargingState.CHARGING_COMPLETE)
+            if not self._wait_interval(self.step_interval):
+                break
+
+            # 4. 高残量・充電中 (90% / 充電中)
             self.state.update_battery(90, status_code=0x04, state_value=0x58, charging_state=ChargingState.CHARGING)
             if not self._wait_interval(self.step_interval):
                 break

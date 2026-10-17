@@ -22,6 +22,7 @@ class ChargingState(Enum):
     UNKNOWN = "UNKNOWN"
     DISCHARGING = "DISCHARGING"
     CHARGING = "CHARGING"
+    CHARGING_COMPLETE = "CHARGING_COMPLETE"
     NOT_CHARGING = "DISCHARGING"
 
 
@@ -46,7 +47,7 @@ class ParsedPacket:
             case 0x00:
                 return "通常動作 / 非充電 (0x00)"
             case 0x02:
-                return "遷移・未確定状態 (0x02)"
+                return "充電完了 (0x02)"
             case 0x04:
                 return "充電中 (0x04)"
             case _:
@@ -127,6 +128,8 @@ def parse_packet(raw_input: Union[bytes, bytearray, List[int]]) -> ParsedPacket:
 
         if status_code == 0x04:
             charging_state = ChargingState.CHARGING
+        elif status_code == 0x02:
+            charging_state = ChargingState.CHARGING_COMPLETE
         elif status_code == 0x00:
             charging_state = ChargingState.DISCHARGING
         else:

@@ -19,7 +19,8 @@ export type ReceiveState =
 export type ChargingState =
   | "UNKNOWN"
   | "DISCHARGING"
-  | "CHARGING";
+  | "CHARGING"
+  | "CHARGING_COMPLETE";
 
 /**
  * キー表示レイアウト
