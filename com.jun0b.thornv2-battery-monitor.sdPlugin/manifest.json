@@ -1,0 +1,42 @@
+{
+  "$schema": "https://schemas.elgato.com/streamdeck/plugins/manifest.json",
+  "Name": "ThornV2 Battery Monitor",
+  "UUID": "com.jun0b.thornv2-battery-monitor",
+  "Version": "0.1.0.0",
+  "Author": "jun0b",
+  "Description": "LAMZU Thorn V2 Mouse Battery Monitor",
+  "Category": "ThornV2 Battery Monitor",
+  "CategoryIcon": "imgs/plugin/category-icon",
+  "Icon": "imgs/plugin/icon",
+  "SDKVersion": 2,
+  "Software": {
+    "MinimumVersion": "7.1"
+  },
+  "OS": [
+    {
+      "Platform": "windows",
+      "MinimumVersion": "10"
+    }
+  ],
+  "Nodejs": {
+    "Version": "20"
+  },
+  "CodePath": "bin/plugin.js",
+  "Actions": [
+    {
+      "UUID": "com.jun0b.thornv2-battery-monitor.battery-ring",
+      "Name": "ThornV2 Battery Monitor",
+      "Icon": "imgs/actions/ring/icon",
+      "PropertyInspectorPath": "ui/battery-ring-pi.html",
+      "Controllers": [
+        "Keypad"
+      ],
+      "UserTitleEnabled": false,
+      "States": [
+        {
+          "Image": "imgs/actions/ring/key"
+        }
+      ]
+    }
+  ]
+}
