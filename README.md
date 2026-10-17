@@ -8,11 +8,11 @@ LAMZU Thorn V2 ワイヤレスゲーミングマウス（LAMZU 8K Dongle V2 経�
 
 Property Inspector（設定画面）から、好みに応じた3種類の表示デザインを選択できます。
 
-| デザイン | 通常時 | 充電中 (⚡) | 充電完了 (⚡) | 特徴 |
+| デザイン | 通常時 | 充電中<br>(⚡) | 充電完了<br>(⚡) | 特徴 |
 | :---: | :---: | :---: | :---: | :--- |
 | **Ring** | <img src="docs/images/design-ring.png" width="100" alt="Ring 通常時"> | <img src="docs/images/design-ring-charging.png" width="100" alt="Ring 充電時"> | <img src="docs/images/design-ring-complete.png" width="100" alt="Ring 充電完了時"> | 円形リングゲージ ＋ 白文字（`95%`）。充電中・充電完了時は上部に⚡マークを表示。 |
 | **Icon** | <img src="docs/images/design-icon.png" width="100" alt="Icon 通常時"> | <img src="docs/images/design-icon-charging.png" width="100" alt="Icon 充電時"> | <img src="docs/images/design-icon-complete.png" width="100" alt="Icon 充電完了時"> | 電池アイコン ＋ 白文字（`85%`）。充電中・充電完了時は中央に薄い黒縁取りの⚡マークを表示。 |
-| **Icon + DPI / Hz** | <img src="docs/images/design-icon-dpi.png" width="100" alt="Icon+DPI/Hz 通常時"> | <img src="docs/images/design-icon-dpi-charging.png" width="100" alt="Icon+DPI/Hz 充電時"> | <img src="docs/images/design-icon-dpi-complete.png" width="100" alt="Icon+DPI/Hz 充電完了時"> | 上段にバッテリー残量＆小型電池、下段に現在の `800 DPI` / `1000 Hz` を同時表示。 |
+| **Icon +<br>DPI / Hz** | <img src="docs/images/design-icon-dpi.png" width="100" alt="Icon+DPI/Hz 通常時"> | <img src="docs/images/design-icon-dpi-charging.png" width="100" alt="Icon+DPI/Hz 充電時"> | <img src="docs/images/design-icon-dpi-complete.png" width="100" alt="Icon+DPI/Hz 充電完了時"> | 上段にバッテリー残量＆小型電池、下段に現在の `800 DPI` / `1000 Hz` を同時表示。 |
 
 ### ステータスごとの表示変化
 - **通常動作**: 残量に応じてカラーが変化（51–100%: 緑 `#22c55e`、21–50%: 黄 `#eab308`、0–20%: 赤 `#ef4444`）
