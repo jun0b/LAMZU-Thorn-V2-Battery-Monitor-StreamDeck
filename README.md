@@ -41,7 +41,20 @@ Stream Deck アプリでキーをクリックすると、以下の設定を変�
 
 ---
 
-## インストール方法
+## 動作要件
+
+| 項目 | 要件 |
+| :--- | :--- |
+| **対象ハードウェア** | LAMZU Thorn V2（LAMZU 8K Dongle V2 接続） |
+| **対応 OS** | Windows 10 / 11 (64-bit) |
+| **Stream Deck アプリ** | **v7.1 以上** |
+
+> [!NOTE]
+> プラグインパッケージ内にバックエンド実行モジュールが同梱されているため、別途 Python 等の事前インストールは不要です。
+
+---
+
+## Stream Deckへのインストール方法
 
 1. **[Releases ページ](https://github.com/jun0b/LAMZU-Thorn-V2-Battery-Monitor-StreamDeck/releases/latest)** から最新の `com.jun0b.thornv2-battery-monitor.streamDeckPlugin` をダウンロードし、ダブルクリックします（または自前でビルドしたパッケージを使用）。
 2. Stream Deck アプリケーションにプラグインが自動登録されます。
