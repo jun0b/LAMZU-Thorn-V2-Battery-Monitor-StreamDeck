@@ -100,6 +100,18 @@
       color: #9bb8ea;
       text-decoration: underline;
     }
+    input[type="checkbox"] {
+      cursor: pointer;
+      accent-color: #0078d4;
+      width: 15px;
+      height: 15px;
+      margin: 0;
+    }
+    .sdpi-checkbox-label {
+      cursor: pointer;
+      color: #d8d8d8;
+      font-size: 12px;
+    }
     .hidden {
       display: none !important;
     }
@@ -133,6 +145,29 @@
       </div>
     </div>
 
+    <!-- 低バッテリー通知設定 -->
+    <div class="sdpi-item">
+      <div class="sdpi-item-label">Low Battery Alert</div>
+      <div class="sdpi-item-value">
+        <input id="low-battery-alert-checkbox" type="checkbox" />
+        <label for="low-battery-alert-checkbox" class="sdpi-checkbox-label">Enable notification</label>
+      </div>
+    </div>
+
+    <!-- 通知閾値設定 -->
+    <div id="low-battery-threshold-group">
+      <div class="sdpi-item">
+        <div class="sdpi-item-label">Alert Threshold</div>
+        <div class="sdpi-item-value">
+          <input id="low-battery-threshold-input" type="number" min="5" max="50" step="5" value="20" />
+          <span class="unit-text">% (5–50)</span>
+        </div>
+      </div>
+      <div class="hint-box">
+        Send Windows toast notification when battery level reaches or drops below this percentage.
+      </div>
+    </div>
+
     <!-- GitHub リンク / フッター情報 -->
     <hr />
     <div class="footer-section">
@@ -147,6 +182,8 @@
     let currentSettings = {
       layout: "ring",
       pollingIntervalSec: 30,
+      lowBatteryNotificationEnabled: false,
+      lowBatteryThreshold: 20,
     };
 
     function openUrl(event, url) {
@@ -168,12 +205,21 @@
     const layoutSelect = document.getElementById("layout-select");
     const pollingGroup = document.getElementById("polling-group");
     const pollingInput = document.getElementById("polling-interval-input");
+    const lowBatteryCheckbox = document.getElementById("low-battery-alert-checkbox");
+    const lowBatteryThresholdGroup = document.getElementById("low-battery-threshold-group");
+    const lowBatteryThresholdInput = document.getElementById("low-battery-threshold-input");
 
     function updateVisibility() {
       if (layoutSelect.value === "bar_dpi") {
         pollingGroup.classList.remove("hidden");
       } else {
         pollingGroup.classList.add("hidden");
+      }
+
+      if (lowBatteryCheckbox.checked) {
+        lowBatteryThresholdGroup.classList.remove("hidden");
+      } else {
+        lowBatteryThresholdGroup.classList.add("hidden");
       }
     }
 
@@ -190,18 +236,50 @@
         interval = Math.round(interval);
       }
 
+      const lowBatteryEnabled = Boolean(settings && settings.lowBatteryNotificationEnabled);
+      let threshold;
+      if (
+        settings &&
+        settings.lowBatteryThreshold !== undefined &&
+        settings.lowBatteryThreshold !== null &&
+        settings.lowBatteryThreshold !== ""
+      ) {
+        const val = Number(settings.lowBatteryThreshold);
+        if (!Number.isFinite(val)) {
+          threshold = 20;
+        } else if (val < 5) {
+          threshold = 5;
+        } else if (val > 50) {
+          threshold = 50;
+        } else {
+          threshold = Math.round(val / 5) * 5;
+          if (threshold < 5) threshold = 5;
+          if (threshold > 50) threshold = 50;
+        }
+      } else {
+        threshold = 20;
+      }
+
       currentSettings = {
         ...settings,
         layout,
         pollingIntervalSec: interval,
+        lowBatteryNotificationEnabled: lowBatteryEnabled,
+        lowBatteryThreshold: threshold,
       };
 
       layoutSelect.value = layout;
-      pollingInput.value = String(interval);
+      if (document.activeElement !== pollingInput) {
+        pollingInput.value = String(interval);
+      }
+      lowBatteryCheckbox.checked = lowBatteryEnabled;
+      if (document.activeElement !== lowBatteryThresholdInput) {
+        lowBatteryThresholdInput.value = String(threshold);
+      }
       updateVisibility();
     }
 
-    function saveSettings() {
+    function saveSettings(normalizeInputValues = true) {
       const layout = layoutSelect.value;
       let interval = parseInt(pollingInput.value, 10);
       if (!Number.isFinite(interval) || interval < 5) {
@@ -209,12 +287,50 @@
       } else if (interval > 3600) {
         interval = 3600;
       }
-      pollingInput.value = String(interval);
+      if (normalizeInputValues) {
+        pollingInput.value = String(interval);
+      }
+
+      const lowBatteryEnabled = lowBatteryCheckbox.checked;
+      const rawThreshold = lowBatteryThresholdInput.value.trim();
+      let threshold = parseInt(rawThreshold, 10);
+      if (!Number.isFinite(threshold)) {
+        threshold = 20;
+      } else if (threshold < 5) {
+        threshold = 5;
+      } else if (threshold > 50) {
+        threshold = 50;
+      } else {
+        threshold = Math.round(threshold / 5) * 5;
+        if (threshold < 5) threshold = 5;
+        if (threshold > 50) threshold = 50;
+      }
+
+      if (normalizeInputValues) {
+        lowBatteryThresholdInput.value = String(threshold);
+      }
+
+      // input イベント中に入力途中の不完全な値（空文字等）で保存しない
+      if (!normalizeInputValues) {
+        const num = parseInt(rawThreshold, 10);
+        if (
+          rawThreshold === "" ||
+          !Number.isFinite(num) ||
+          num < 5 ||
+          num > 50 ||
+          num % 5 !== 0 ||
+          String(num) !== rawThreshold
+        ) {
+          return;
+        }
+      }
 
       currentSettings = {
         ...currentSettings,
         layout,
         pollingIntervalSec: interval,
+        lowBatteryNotificationEnabled: lowBatteryEnabled,
+        lowBatteryThreshold: threshold,
       };
       updateVisibility();
 
@@ -235,6 +351,19 @@
 
     pollingInput.addEventListener("change", () => {
       saveSettings();
+    });
+
+    lowBatteryCheckbox.addEventListener("change", () => {
+      updateVisibility();
+      saveSettings();
+    });
+
+    lowBatteryThresholdInput.addEventListener("change", () => {
+      saveSettings(true);
+    });
+
+    lowBatteryThresholdInput.addEventListener("input", () => {
+      saveSettings(false);
     });
 
     // Stream Deck Property Inspector entry point
