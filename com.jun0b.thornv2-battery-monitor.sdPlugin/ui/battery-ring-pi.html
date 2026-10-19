@@ -115,6 +115,29 @@
     .hidden {
       display: none !important;
     }
+    button.sdpi-button {
+      background-color: #3d3d3d;
+      color: #e8e8e8;
+      border: 1px solid #555555;
+      border-radius: 4px;
+      padding: 5px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      outline: none;
+      transition: background-color 0.15s, border-color 0.15s;
+    }
+    button.sdpi-button:hover {
+      background-color: #4d4d4d;
+      border-color: #0078d4;
+    }
+    button.sdpi-button:active {
+      background-color: #0078d4;
+      color: #ffffff;
+    }
+    button.sdpi-button:disabled {
+      opacity: 0.6;
+      cursor: default;
+    }
   </style>
 </head>
 <body>
@@ -154,7 +177,7 @@
       </div>
     </div>
 
-    <!-- 通知閾値設定 -->
+    <!-- 通知閾値・詳細設定 -->
     <div id="low-battery-threshold-group">
       <div class="sdpi-item">
         <div class="sdpi-item-label">Alert Threshold</div>
@@ -165,6 +188,40 @@
       </div>
       <div class="hint-box">
         Send Windows toast notification when battery level reaches or drops below this percentage.
+      </div>
+
+      <div class="sdpi-item">
+        <div class="sdpi-item-label">Sound</div>
+        <div class="sdpi-item-value">
+          <input id="low-battery-sound-checkbox" type="checkbox" checked />
+          <label for="low-battery-sound-checkbox" class="sdpi-checkbox-label">Play alert sound</label>
+        </div>
+      </div>
+
+      <div class="sdpi-item">
+        <div class="sdpi-item-label">Keep on Screen</div>
+        <div class="sdpi-item-value">
+          <input id="low-battery-reminder-checkbox" type="checkbox" checked />
+          <label for="low-battery-reminder-checkbox" class="sdpi-checkbox-label">Stay until dismissed</label>
+        </div>
+      </div>
+
+      <div class="sdpi-item">
+        <div class="sdpi-item-label">Critical Alert</div>
+        <div class="sdpi-item-value">
+          <input id="critical-battery-checkbox" type="checkbox" checked />
+          <label for="critical-battery-checkbox" class="sdpi-checkbox-label">Emergency re-alert at ≤ 5%</label>
+        </div>
+      </div>
+
+      <div class="sdpi-item">
+        <div class="sdpi-item-label">Test</div>
+        <div class="sdpi-item-value">
+          <button id="test-notification-btn" class="sdpi-button" type="button">Send Test Notification</button>
+        </div>
+      </div>
+      <div class="hint-box">
+        Sends an immediate test toast notification to verify sound, icon, and banner settings.
       </div>
     </div>
 
@@ -179,11 +236,16 @@
   <script>
     let websocket = null;
     let piUUID = "";
+    let actionUUID = "com.jun0b.thornv2-battery-monitor.battery-ring";
+    let actionContext = "";
     let currentSettings = {
       layout: "ring",
       pollingIntervalSec: 30,
       lowBatteryNotificationEnabled: false,
       lowBatteryThreshold: 20,
+      lowBatterySoundEnabled: true,
+      lowBatteryReminderMode: true,
+      criticalBatteryAlertEnabled: true,
     };
 
     function openUrl(event, url) {
@@ -208,6 +270,10 @@
     const lowBatteryCheckbox = document.getElementById("low-battery-alert-checkbox");
     const lowBatteryThresholdGroup = document.getElementById("low-battery-threshold-group");
     const lowBatteryThresholdInput = document.getElementById("low-battery-threshold-input");
+    const lowBatterySoundCheckbox = document.getElementById("low-battery-sound-checkbox");
+    const lowBatteryReminderCheckbox = document.getElementById("low-battery-reminder-checkbox");
+    const criticalBatteryCheckbox = document.getElementById("critical-battery-checkbox");
+    const testNotificationBtn = document.getElementById("test-notification-btn");
 
     function updateVisibility() {
       if (layoutSelect.value === "bar_dpi") {
@@ -260,12 +326,25 @@
         threshold = 20;
       }
 
+      const soundEnabled = settings && settings.lowBatterySoundEnabled !== undefined
+        ? Boolean(settings.lowBatterySoundEnabled)
+        : true;
+      const reminderMode = settings && settings.lowBatteryReminderMode !== undefined
+        ? Boolean(settings.lowBatteryReminderMode)
+        : true;
+      const criticalAlertEnabled = settings && settings.criticalBatteryAlertEnabled !== undefined
+        ? Boolean(settings.criticalBatteryAlertEnabled)
+        : true;
+
       currentSettings = {
         ...settings,
         layout,
         pollingIntervalSec: interval,
         lowBatteryNotificationEnabled: lowBatteryEnabled,
         lowBatteryThreshold: threshold,
+        lowBatterySoundEnabled: soundEnabled,
+        lowBatteryReminderMode: reminderMode,
+        criticalBatteryAlertEnabled: criticalAlertEnabled,
       };
 
       layoutSelect.value = layout;
@@ -276,6 +355,9 @@
       if (document.activeElement !== lowBatteryThresholdInput) {
         lowBatteryThresholdInput.value = String(threshold);
       }
+      lowBatterySoundCheckbox.checked = soundEnabled;
+      lowBatteryReminderCheckbox.checked = reminderMode;
+      criticalBatteryCheckbox.checked = criticalAlertEnabled;
       updateVisibility();
     }
 
@@ -292,6 +374,10 @@
       }
 
       const lowBatteryEnabled = lowBatteryCheckbox.checked;
+      const soundEnabled = lowBatterySoundCheckbox.checked;
+      const reminderMode = lowBatteryReminderCheckbox.checked;
+      const criticalAlertEnabled = criticalBatteryCheckbox.checked;
+
       const rawThreshold = lowBatteryThresholdInput.value.trim();
       let threshold = parseInt(rawThreshold, 10);
       if (!Number.isFinite(threshold)) {
@@ -331,6 +417,9 @@
         pollingIntervalSec: interval,
         lowBatteryNotificationEnabled: lowBatteryEnabled,
         lowBatteryThreshold: threshold,
+        lowBatterySoundEnabled: soundEnabled,
+        lowBatteryReminderMode: reminderMode,
+        criticalBatteryAlertEnabled: criticalAlertEnabled,
       };
       updateVisibility();
 
@@ -366,12 +455,56 @@
       saveSettings(false);
     });
 
+    lowBatterySoundCheckbox.addEventListener("change", () => {
+      saveSettings();
+    });
+
+    lowBatteryReminderCheckbox.addEventListener("change", () => {
+      saveSettings();
+    });
+
+    criticalBatteryCheckbox.addEventListener("change", () => {
+      saveSettings();
+    });
+
+    testNotificationBtn.addEventListener("click", () => {
+      saveSettings();
+      if (websocket && websocket.readyState === WebSocket.OPEN) {
+        websocket.send(
+          JSON.stringify({
+            action: actionUUID,
+            event: "sendToPlugin",
+            context: piUUID,
+            payload: {
+              event: "sendTestNotification",
+              settings: currentSettings,
+            },
+          })
+        );
+        const prevText = testNotificationBtn.textContent;
+        testNotificationBtn.textContent = "Sent!";
+        testNotificationBtn.disabled = true;
+        setTimeout(() => {
+          testNotificationBtn.textContent = prevText;
+          testNotificationBtn.disabled = false;
+        }, 1200);
+      }
+    });
+
     // Stream Deck Property Inspector entry point
     function connectElgatoStreamDeckSocket(inPort, inPropertyInspectorUUID, inRegisterEvent, inInfo, inActionInfo) {
       piUUID = inPropertyInspectorUUID;
 
       try {
         const actionObj = JSON.parse(inActionInfo);
+        if (actionObj) {
+          if (actionObj.action) {
+            actionUUID = actionObj.action;
+          }
+          if (actionObj.context) {
+            actionContext = actionObj.context;
+          }
+        }
         const settings = actionObj && actionObj.payload && actionObj.payload.settings ? actionObj.payload.settings : {};
         applySettingsToUI(settings);
       } catch (e) {

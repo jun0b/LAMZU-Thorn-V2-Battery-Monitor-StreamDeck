@@ -12,6 +12,12 @@ export interface LowBatterySettings {
 	lowBatteryNotificationEnabled?: boolean;
 	/** 通知閾値パーセント (5〜50, 規定値: 20) */
 	lowBatteryThreshold?: number;
+	/** 通知音を鳴らすかどうか (規定値: true) */
+	lowBatterySoundEnabled?: boolean;
+	/** 閉じるまで画面に保持するかどうか (規定値: true) */
+	lowBatteryReminderMode?: boolean;
+	/** 5%以下での緊急再通知を行うかどうか (規定値: true) */
+	criticalBatteryAlertEnabled?: boolean;
 }
 
 /**
@@ -36,8 +42,12 @@ export interface ToastNotificationOptions {
 	title: string;
 	/** 通知本文 */
 	body: string;
-	/** Windows アプリケーション AUMID（省略時は PowerShell 既定 AUMID） */
+	/** Windows アプリケーション AUMID（省略時は Stream Deck 既定 AUMID） */
 	appId?: string;
+	/** 通知音を鳴らすかどうか */
+	sound?: boolean;
+	/** 閉じるまで画面に保持するかどうか */
+	reminder?: boolean;
 }
 
 /**

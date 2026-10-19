@@ -7,6 +7,7 @@ import streamDeck, {
 	type DidReceiveSettingsEvent,
 	type KeyAction,
 	type KeyDownEvent,
+	type SendToPluginEvent,
 	SingletonAction,
 	type WillAppearEvent,
 	type WillDisappearEvent,
@@ -16,6 +17,7 @@ import { renderBatteryKey, svgToDataUrl } from "../render/ring-renderer.js";
 import type { BatteryDisplayState, DisplayLayout } from "../render/types.js";
 import {
 	LowBatteryNotificationManager,
+	normalizeBooleanOption,
 	normalizeLowBatteryEnabled,
 	normalizeLowBatteryThreshold,
 } from "../notification/index.js";
@@ -31,6 +33,9 @@ export interface BatteryKeySettings extends JsonObject {
 	pollingIntervalSec?: number;
 	lowBatteryNotificationEnabled?: boolean;
 	lowBatteryThreshold?: number;
+	lowBatterySoundEnabled?: boolean;
+	lowBatteryReminderMode?: boolean;
+	criticalBatteryAlertEnabled?: boolean;
 }
 
 interface ActiveKeyEntry {
@@ -40,6 +45,9 @@ interface ActiveKeyEntry {
 	pollingIntervalSec: number;
 	lowBatteryNotificationEnabled: boolean;
 	lowBatteryThreshold: number;
+	lowBatterySoundEnabled: boolean;
+	lowBatteryReminderMode: boolean;
+	criticalBatteryAlertEnabled: boolean;
 }
 
 function normalizeLayout(raw: unknown): DisplayLayout {
@@ -91,6 +99,20 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 		} else if (streamDeck?.logger) {
 			this.notificationManager.setLogger(streamDeck.logger);
 		}
+
+		streamDeck.ui?.onSendToPlugin?.((ev) => {
+			const payload = ev.payload as { event?: string; settings?: BatteryKeySettings } | undefined;
+			if (payload?.event === "sendTestNotification") {
+				streamDeck.logger.info("[BatteryRingAction:ui] Property Inspector からテスト通知要求を受信しました");
+				const overrideSettings = payload.settings
+					? {
+							lowBatterySoundEnabled: normalizeBooleanOption(payload.settings.lowBatterySoundEnabled, true),
+							lowBatteryReminderMode: normalizeBooleanOption(payload.settings.lowBatteryReminderMode, true),
+						}
+					: undefined;
+				void this.notificationManager.sendTestNotification(overrideSettings);
+			}
+		});
 	}
 
 	override onWillAppear(ev: WillAppearEvent<BatteryKeySettings>): void | Promise<void> {
@@ -104,6 +126,13 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 			);
 			const lowBatteryThreshold = normalizeLowBatteryThreshold(settings.lowBatteryThreshold);
 
+			const lowBatterySoundEnabled = normalizeBooleanOption(settings.lowBatterySoundEnabled, true);
+			const lowBatteryReminderMode = normalizeBooleanOption(settings.lowBatteryReminderMode, true);
+			const criticalBatteryAlertEnabled = normalizeBooleanOption(
+				settings.criticalBatteryAlertEnabled,
+				true,
+			);
+
 			const entry: ActiveKeyEntry = {
 				action: ev.action,
 				lastSvg: null,
@@ -111,14 +140,20 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 				pollingIntervalSec,
 				lowBatteryNotificationEnabled,
 				lowBatteryThreshold,
+				lowBatterySoundEnabled,
+				lowBatteryReminderMode,
+				criticalBatteryAlertEnabled,
 			};
 			this.activeKeys.set(actionId, entry);
 			this.notificationManager.updateKeySettings(actionId, {
 				lowBatteryNotificationEnabled,
 				lowBatteryThreshold,
+				lowBatterySoundEnabled,
+				lowBatteryReminderMode,
+				criticalBatteryAlertEnabled,
 			});
 			streamDeck.logger.info(
-				`[BatteryRingAction] onWillAppear: id=${actionId}, layout=${layout}, poll=${pollingIntervalSec}s, lowBatEnabled=${lowBatteryNotificationEnabled}, lowBatThreshold=${lowBatteryThreshold}%, activeKeys=${this.activeKeys.size}`,
+				`[BatteryRingAction] onWillAppear: id=${actionId}, layout=${layout}, poll=${pollingIntervalSec}s, lowBatEnabled=${lowBatteryNotificationEnabled}, lowBatThreshold=${lowBatteryThreshold}%, sound=${lowBatterySoundEnabled}, reminder=${lowBatteryReminderMode}, critical=${criticalBatteryAlertEnabled}, activeKeys=${this.activeKeys.size}`,
 			);
 
 			// キー表示時の通知判定
@@ -151,6 +186,12 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 			settings.lowBatteryNotificationEnabled,
 		);
 		const lowBatteryThreshold = normalizeLowBatteryThreshold(settings.lowBatteryThreshold);
+		const lowBatterySoundEnabled = normalizeBooleanOption(settings.lowBatterySoundEnabled, true);
+		const lowBatteryReminderMode = normalizeBooleanOption(settings.lowBatteryReminderMode, true);
+		const criticalBatteryAlertEnabled = normalizeBooleanOption(
+			settings.criticalBatteryAlertEnabled,
+			true,
+		);
 
 		let entry = this.activeKeys.get(actionId);
 		const switchedToBarDpi = entry?.layout !== "bar_dpi" && newLayout === "bar_dpi";
@@ -160,6 +201,9 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 			entry.pollingIntervalSec = newIntervalSec;
 			entry.lowBatteryNotificationEnabled = lowBatteryNotificationEnabled;
 			entry.lowBatteryThreshold = lowBatteryThreshold;
+			entry.lowBatterySoundEnabled = lowBatterySoundEnabled;
+			entry.lowBatteryReminderMode = lowBatteryReminderMode;
+			entry.criticalBatteryAlertEnabled = criticalBatteryAlertEnabled;
 		} else {
 			entry = {
 				action: ev.action,
@@ -168,6 +212,9 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 				pollingIntervalSec: newIntervalSec,
 				lowBatteryNotificationEnabled,
 				lowBatteryThreshold,
+				lowBatterySoundEnabled,
+				lowBatteryReminderMode,
+				criticalBatteryAlertEnabled,
 			};
 			this.activeKeys.set(actionId, entry);
 		}
@@ -175,10 +222,13 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 		this.notificationManager.updateKeySettings(actionId, {
 			lowBatteryNotificationEnabled,
 			lowBatteryThreshold,
+			lowBatterySoundEnabled,
+			lowBatteryReminderMode,
+			criticalBatteryAlertEnabled,
 		});
 
 		streamDeck.logger.info(
-			`[BatteryRingAction] onDidReceiveSettings: id=${actionId}, layout=${newLayout}, poll=${newIntervalSec}s, lowBatEnabled=${lowBatteryNotificationEnabled}, lowBatThreshold=${lowBatteryThreshold}%`,
+			`[BatteryRingAction] onDidReceiveSettings: id=${actionId}, layout=${newLayout}, poll=${newIntervalSec}s, lowBatEnabled=${lowBatteryNotificationEnabled}, lowBatThreshold=${lowBatteryThreshold}%, sound=${lowBatterySoundEnabled}, reminder=${lowBatteryReminderMode}, critical=${criticalBatteryAlertEnabled}`,
 		);
 
 		// 設定変更時の通知判定
@@ -196,6 +246,25 @@ export class BatteryRingAction extends SingletonAction<BatteryKeySettings> {
 
 		this.reconcilePollingSchedule(switchedToBarDpi);
 		return this.renderKey(actionId, entry);
+	}
+
+	/**
+	 * Property Inspector からのメッセージ（テスト通知等）を受信
+	 */
+	override async onSendToPlugin(
+		ev: SendToPluginEvent<JsonObject, BatteryKeySettings>,
+	): Promise<void> {
+		const payload = ev.payload as { event?: string; settings?: BatteryKeySettings } | undefined;
+		if (payload?.event === "sendTestNotification") {
+			streamDeck.logger.info("[BatteryRingAction] Property Inspector からテスト通知要求を受信しました");
+			const overrideSettings = payload.settings
+				? {
+						lowBatterySoundEnabled: normalizeBooleanOption(payload.settings.lowBatterySoundEnabled, true),
+						lowBatteryReminderMode: normalizeBooleanOption(payload.settings.lowBatteryReminderMode, true),
+					}
+				: undefined;
+			await this.notificationManager.sendTestNotification(overrideSettings);
+		}
 	}
 
 	override onWillDisappear(ev: WillDisappearEvent<BatteryKeySettings>): void {

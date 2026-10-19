@@ -5,8 +5,11 @@
 import { spawn } from "node:child_process";
 import type { ToastNotificationOptions } from "./types.js";
 
-/** PowerShell の標準 AUMID */
-export const DEFAULT_AUMID = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe";
+/** Stream Deck の標準 AUMID */
+export const DEFAULT_AUMID = "{6D809377-6AF0-444B-8957-A3773F02200E}\\Elgato\\StreamDeck\\StreamDeck.exe";
+
+/** フォールバック用 AUMID */
+export const FALLBACK_AUMID = "{1AC14E77-02E7-4E5D-B744-2EB1AE5198B7}\\WindowsPowerShell\\v1.0\\powershell.exe";
 
 /** XML 特殊文字のエスケープ */
 export function escapeXml(str: string): string {
@@ -24,17 +27,37 @@ export function escapeXml(str: string): string {
 
 /** トースト通知用 PowerShell スクリプトの生成 */
 export function buildPowerShellToastScript(
-	title: string,
-	body: string,
-	appId: string = DEFAULT_AUMID,
+	optionsOrTitle: ToastNotificationOptions | string,
+	bodyText?: string,
+	appIdArg?: string,
 ): string {
-	const safeTitle = escapeXml(title ?? "");
-	const safeBody = escapeXml(body ?? "");
-	const xmlContent = `<toast><visual><binding template="ToastGeneric"><text>${safeTitle}</text><text>${safeBody}</text></binding></visual></toast>`;
+	const options: ToastNotificationOptions =
+		typeof optionsOrTitle === "string"
+			? {
+					title: optionsOrTitle,
+					body: bodyText ?? "",
+					appId: appIdArg,
+				}
+			: optionsOrTitle;
+
+	const safeTitle = escapeXml(options.title ?? "");
+	const safeBody = escapeXml(options.body ?? "");
+	const scenarioAttr = options.reminder !== false ? ' scenario="reminder"' : "";
+	const actionTags =
+		options.reminder !== false
+			? '<actions><action content="Dismiss" arguments="dismiss" /></actions>'
+			: "";
+	const audioTag =
+		options.sound !== false
+			? '<audio src="ms-winsoundevent:Notification.Default" />'
+			: '<audio silent="true" />';
+	const xmlContent = `<toast${scenarioAttr}><visual><binding template="ToastGeneric"><text>${safeTitle}</text><text>${safeBody}</text></binding></visual>${audioTag}${actionTags}</toast>`;
 	const base64Xml = Buffer.from(xmlContent, "utf-8").toString("base64");
-	const safeAppId = (appId || DEFAULT_AUMID).replace(/'/g, "''");
+	const safePrimaryAppId = (options.appId || DEFAULT_AUMID).replace(/'/g, "''");
+	const safeFallbackAppId = FALLBACK_AUMID.replace(/'/g, "''");
 
 	return [
+		"$ErrorActionPreference = 'Stop';",
 		"$ProgressPreference = 'SilentlyContinue';",
 		"[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null;",
 		"[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null;",
@@ -42,9 +65,23 @@ export function buildPowerShellToastScript(
 		"$xml = New-Object Windows.Data.Xml.Dom.XmlDocument;",
 		"$xml.LoadXml($xmlContent);",
 		"$toast = New-Object Windows.UI.Notifications.ToastNotification $xml;",
-		`$appId = '${safeAppId}';`,
-		"$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($appId);",
-		"$notifier.Show($toast);",
+		`$primaryId = '${safePrimaryAppId}';`,
+		`$fallbackId = '${safeFallbackAppId}';`,
+		"try {",
+		"    $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($primaryId);",
+		"    $notifier.Show($toast);",
+		"    Write-Output \"SUCCESS: $primaryId\";",
+		"} catch {",
+		"    Write-Output \"FALLBACK_TRIGGERED: $($_.Exception.Message)\";",
+		"    try {",
+		"        $notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier($fallbackId);",
+		"        $notifier.Show($toast);",
+		"        Write-Output \"SUCCESS: $fallbackId\";",
+		"    } catch {",
+		"        Write-Error \"ERROR: $($_.Exception.Message)\";",
+		"    }",
+		"}",
+		"Start-Sleep -Milliseconds 1000;",
 	].join("\n");
 }
 
@@ -63,11 +100,14 @@ export function sendWindowsToastNotification(
 	}
 
 	try {
-		const script = buildPowerShellToastScript(options.title, options.body, options.appId);
+		const script = buildPowerShellToastScript(options);
 		const encoded = encodePowerShellCommand(script);
+		const psExe = process.env.SystemRoot
+			? `${process.env.SystemRoot}\\System32\\WindowsPowerShell\\v1.0\\powershell.exe`
+			: "powershell.exe";
 
 		const child = spawn(
-			"powershell.exe",
+			psExe,
 			[
 				"-NoProfile",
 				"-NonInteractive",
@@ -80,13 +120,29 @@ export function sendWindowsToastNotification(
 			],
 			{
 				windowsHide: true,
-				stdio: "ignore",
-				detached: true,
+				stdio: ["ignore", "pipe", "pipe"],
 			},
 		);
 
+		let stderr = "";
+		let stdout = "";
+		child.stdout?.on("data", (chunk: Buffer) => {
+			stdout += chunk.toString();
+		});
+		child.stderr?.on("data", (chunk: Buffer) => {
+			stderr += chunk.toString();
+		});
+
 		child.on("error", (err: Error) => {
 			logger?.warn(`[ToastNotification] PowerShell プロセス起動エラー: ${err.message}`);
+		});
+
+		child.on("exit", (code) => {
+			if (code !== 0 || stderr.trim()) {
+				logger?.warn(`[ToastNotification] PowerShell 終了コード ${code}, stderr: ${stderr.trim()}`);
+			} else {
+				logger?.info?.(`[ToastNotification] トースト通知送信完了: ${stdout.trim()}`);
+			}
 		});
 
 		child.unref();

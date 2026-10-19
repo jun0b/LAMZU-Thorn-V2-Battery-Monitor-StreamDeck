@@ -12,7 +12,7 @@ import type {
 } from "./types.js";
 
 /** 通知タイトル既定値 */
-export const TOAST_TITLE = "LAMZU Thorn V2 - 低バッテリー警告";
+export const TOAST_TITLE = "LAMZU Thorn V2 - Low Battery Warning";
 
 /**
  * 通知本文をフォーマットする
@@ -21,7 +21,7 @@ export const TOAST_TITLE = "LAMZU Thorn V2 - 低バッテリー警告";
  * @returns 通知本文テキスト
  */
 export function formatToastBody(battery: number): string {
-	return `バッテリー残量が ${battery}% に低下しました。充電してください。`;
+	return `Battery level has dropped to ${battery}%. Please connect the charger.`;
 }
 
 /**
@@ -82,12 +82,27 @@ export function normalizeLowBatteryEnabled(raw: unknown): boolean {
 }
 
 /**
+ * 既定値 true のブール値を正規化する
+ *
+ * @param raw 入力値
+ * @param defaultValue 既定値
+ * @returns 真偽値
+ */
+export function normalizeBooleanOption(raw: unknown, defaultValue = true): boolean {
+	if (raw === undefined || raw === null || raw === "") {
+		return defaultValue;
+	}
+	return raw === true || raw === "true";
+}
+
+/**
  * 低バッテリー通知マネージャークラス
  */
 export class LowBatteryNotificationManager {
 	private static singletonInstance: LowBatteryNotificationManager | null = null;
 
 	private hasNotified = false;
+	private hasNotifiedCritical = false;
 	private lastNotifiedBattery: number | null = null;
 	private lastNotifiedThreshold: number | null = null;
 	private readonly keySettingsMap = new Map<string, LowBatterySettings>();
@@ -168,10 +183,16 @@ export class LowBatteryNotificationManager {
 	public updateKeySettings(keyId: string, settings?: LowBatterySettings): void {
 		const enabled = normalizeLowBatteryEnabled(settings?.lowBatteryNotificationEnabled);
 		const threshold = normalizeLowBatteryThreshold(settings?.lowBatteryThreshold);
+		const sound = normalizeBooleanOption(settings?.lowBatterySoundEnabled, true);
+		const reminder = normalizeBooleanOption(settings?.lowBatteryReminderMode, true);
+		const critical = normalizeBooleanOption(settings?.criticalBatteryAlertEnabled, true);
 
 		this.keySettingsMap.set(keyId, {
 			lowBatteryNotificationEnabled: enabled,
 			lowBatteryThreshold: threshold,
+			lowBatterySoundEnabled: sound,
+			lowBatteryReminderMode: reminder,
+			criticalBatteryAlertEnabled: critical,
 		});
 	}
 
@@ -186,12 +207,19 @@ export class LowBatteryNotificationManager {
 
 	/**
 	 * 現在登録されている全キーから集約した有効設定を取得する
-	 * - いずれか 1 つのキーでも有効であれば通知有効
-	 * - 有効なキーの中で最も高い閾値を優先
 	 */
-	public getEffectiveSettings(): { enabled: boolean; threshold: number } {
+	public getEffectiveSettings(): {
+		enabled: boolean;
+		threshold: number;
+		soundEnabled: boolean;
+		reminderMode: boolean;
+		criticalAlertEnabled: boolean;
+	} {
 		let enabled = false;
 		let maxThreshold = 20;
+		let soundEnabled = true;
+		let reminderMode = true;
+		let criticalAlertEnabled = true;
 		let hasEnabledKey = false;
 
 		for (const s of this.keySettingsMap.values()) {
@@ -202,12 +230,18 @@ export class LowBatteryNotificationManager {
 					maxThreshold = th;
 					hasEnabledKey = true;
 				}
+				soundEnabled = normalizeBooleanOption(s.lowBatterySoundEnabled, true);
+				reminderMode = normalizeBooleanOption(s.lowBatteryReminderMode, true);
+				criticalAlertEnabled = normalizeBooleanOption(s.criticalBatteryAlertEnabled, true);
 			}
 		}
 
 		return {
 			enabled,
 			threshold: maxThreshold,
+			soundEnabled,
+			reminderMode,
+			criticalAlertEnabled,
 		};
 	}
 
@@ -216,6 +250,13 @@ export class LowBatteryNotificationManager {
 	 */
 	public isNotified(): boolean {
 		return this.hasNotified;
+	}
+
+	/**
+	 * 5%以下緊急通知済みかどうか
+	 */
+	public isCriticalNotified(): boolean {
+		return this.hasNotifiedCritical;
 	}
 
 	/**
@@ -237,6 +278,7 @@ export class LowBatteryNotificationManager {
 	 */
 	public resetCycle(): void {
 		this.hasNotified = false;
+		this.hasNotifiedCritical = false;
 		this.lastNotifiedBattery = null;
 		this.lastNotifiedThreshold = null;
 	}
@@ -246,9 +288,50 @@ export class LowBatteryNotificationManager {
 	 */
 	public resetAll(): void {
 		this.hasNotified = false;
+		this.hasNotifiedCritical = false;
 		this.lastNotifiedBattery = null;
 		this.lastNotifiedThreshold = null;
 		this.keySettingsMap.clear();
+	}
+
+	private lastTestNotificationTime = 0;
+
+	/**
+	 * テスト通知を即座に送信する
+	 */
+	public async sendTestNotification(overrideSettings?: LowBatterySettings): Promise<boolean> {
+		const now = Date.now();
+		if (now - this.lastTestNotificationTime < 1000) {
+			return true;
+		}
+		this.lastTestNotificationTime = now;
+
+		const effective = overrideSettings
+			? {
+					soundEnabled: normalizeBooleanOption(overrideSettings.lowBatterySoundEnabled, true),
+					reminderMode: normalizeBooleanOption(overrideSettings.lowBatteryReminderMode, true),
+				}
+			: this.getEffectiveSettings();
+
+		const title = "LAMZU Thorn V2 - Notification Test";
+		const body = "Test notification. Sound and display alerts are functioning properly.";
+
+		this.logger?.info?.("[LowBatteryNotificationManager] テスト通知を発行します");
+		try {
+			await Promise.resolve(
+				this.toastSender({
+					title,
+					body,
+					sound: effective.soundEnabled,
+					reminder: effective.reminderMode,
+				}),
+			);
+			return true;
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : String(err);
+			this.logger?.warn?.(`[LowBatteryNotificationManager] テスト通知送信エラー: ${msg}`);
+			return false;
+		}
 	}
 
 	/**
@@ -266,6 +349,9 @@ export class LowBatteryNotificationManager {
 			? {
 					enabled: normalizeLowBatteryEnabled(overrideSettings.lowBatteryNotificationEnabled),
 					threshold: normalizeLowBatteryThreshold(overrideSettings.lowBatteryThreshold),
+					soundEnabled: normalizeBooleanOption(overrideSettings.lowBatterySoundEnabled, true),
+					reminderMode: normalizeBooleanOption(overrideSettings.lowBatteryReminderMode, true),
+					criticalAlertEnabled: normalizeBooleanOption(overrideSettings.criticalBatteryAlertEnabled, true),
 				}
 			: this.getEffectiveSettings();
 
@@ -274,6 +360,7 @@ export class LowBatteryNotificationManager {
 		// 充電中は通知フラグをリセット
 		if (charging) {
 			this.hasNotified = false;
+			this.hasNotifiedCritical = false;
 			this.lastNotifiedBattery = null;
 			this.lastNotifiedThreshold = null;
 			return {
@@ -317,12 +404,11 @@ export class LowBatteryNotificationManager {
 			this.hasNotified = false;
 			this.lastNotifiedBattery = null;
 			this.lastNotifiedThreshold = null;
-			return {
-				shouldNotify: false,
-				reason: "battery_above_threshold",
-				battery: currentBattery,
-				threshold: effective.threshold,
-			};
+		}
+
+		// 5% を上回ったら緊急通知フラグをリセット
+		if (currentBattery > 5) {
+			this.hasNotifiedCritical = false;
 		}
 
 		// 通知が無効な場合はスキップ
@@ -335,8 +421,22 @@ export class LowBatteryNotificationManager {
 			};
 		}
 
-		// 通知済みの場合はスキップ
-		if (this.hasNotified) {
+		// 緊急再通知判定 (5% 以下)
+		const isCriticalTrigger =
+			effective.criticalAlertEnabled && currentBattery <= 5 && !this.hasNotifiedCritical;
+
+		// 閾値超過かつ緊急通知対象外ならスキップ
+		if (currentBattery > effective.threshold && !isCriticalTrigger) {
+			return {
+				shouldNotify: false,
+				reason: "battery_above_threshold",
+				battery: currentBattery,
+				threshold: effective.threshold,
+			};
+		}
+
+		// 通常通知済みで緊急通知対象でもない場合は重複スキップ
+		if (this.hasNotified && !isCriticalTrigger) {
 			return {
 				shouldNotify: false,
 				reason: "already_notified",
@@ -345,15 +445,23 @@ export class LowBatteryNotificationManager {
 			};
 		}
 
-		// 通知を送信
+		// 通知内容の決定
+		let title = TOAST_TITLE;
+		let body = formatToastBody(currentBattery);
+		if (isCriticalTrigger && this.hasNotified) {
+			title = "LAMZU Thorn V2 - Critical Battery Alert";
+			body = `Battery is critically low at ${currentBattery}%. Please recharge immediately.`;
+		}
+
 		this.hasNotified = true;
+		if (currentBattery <= 5) {
+			this.hasNotifiedCritical = true;
+		}
 		this.lastNotifiedBattery = currentBattery;
 		this.lastNotifiedThreshold = effective.threshold;
-		const title = TOAST_TITLE;
-		const body = formatToastBody(currentBattery);
 
 		this.logger?.info?.(
-			`[LowBatteryNotificationManager] 低バッテリー警告通知を発行: battery=${currentBattery}%, threshold=${effective.threshold}%`,
+			`[LowBatteryNotificationManager] 低バッテリー警告通知を発行: battery=${currentBattery}%, threshold=${effective.threshold}%, critical=${isCriticalTrigger}`,
 		);
 
 		try {
@@ -361,6 +469,8 @@ export class LowBatteryNotificationManager {
 				this.toastSender({
 					title,
 					body,
+					sound: effective.soundEnabled,
+					reminder: effective.reminderMode,
 				}),
 			);
 		} catch (err: unknown) {
